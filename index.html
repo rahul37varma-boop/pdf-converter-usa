@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Free online PDF converter. Convert PDF to Word, JPG, merge, split and compress PDF files easily.">
+<title>PDF Converter USA - Free Online PDF Tools</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f7fc;color:#17233b}
+header{background:#123b80;color:white;padding:25px 15px;text-align:center}
+header h1{margin:0 0 10px;font-size:30px}
+header p{margin:0;color:#e2eaff}
+main{max-width:850px;margin:30px auto;padding:15px}
+.panel{background:white;border-radius:14px;padding:25px;box-shadow:0 4px 18px #00000010}
+h2{text-align:center;color:#123b80}
+.tools{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:20px 0}
+.tool{padding:15px;border:2px solid #dce5f3;border-radius:10px;background:white;color:#173c78;font-weight:bold;cursor:pointer}
+.tool.active,.tool:hover{border-color:#1765cf;background:#edf4ff}
+label{display:block;font-weight:bold;margin:18px 0 8px}
+input,select{width:100%;padding:13px;border:1px solid #cbd5e1;border-radius:8px;background:white}
+button{padding:14px 20px;background:#1765cf;color:white;border:0;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;width:100%;margin-top:18px}
+button:hover{background:#104b9e}
+button:disabled{opacity:.6;cursor:wait}
+#status{margin-top:18px;text-align:center;font-weight:bold;overflow-wrap:anywhere}
+.note{font-size:13px;color:#64748b;line-height:1.6}
+footer{text-align:center;padding:25px;color:#64748b}
+@media(max-width:500px){.tools{grid-template-columns:1fr}.panel{padding:18px}}
+</style>
+</head>
+<body>
+<header>
+<h1>PDF Converter USA</h1>
+<p>Free Online PDF Converter & Tools</p>
+</header>
+<main>
+<div class="panel">
+<h2>Choose Your PDF Tool</h2>
+<div class="tools">
+<button class="tool active" data-tool="word">PDF to Word</button>
+<button class="tool" data-tool="jpg">PDF to JPG</button>
+<button class="tool" data-tool="topdf">JPG to PDF</button>
+<button class="tool" data-tool="merge">Merge PDF</button>
+<button class="tool" data-tool="split">Split PDF</button>
+<button class="tool" data-tool="compress">Compress PDF</button>
+</div>
+<label id="fileLabel">Select PDF file</label>
+<input type="file" id="files" accept=".pdf,application/pdf">
+<div id="extra"></div>
+<button id="convert">Convert Now</button>
+<div id="status" role="status"></div>
+<p class="note">Your files are processed in your browser. They are not uploaded to our server. Conversion quality and supported features depend on the selected tool.</p>
+</div>
+</main>
+<footer>© 2026 PDF Converter USA. All rights reserved.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const $ = id => document.getElementById(id);
+let tool = "word";
+
+const settings = {
+ word: ["Select PDF file", ".pdf,application/pdf", false],
+ jpg: ["Select PDF file", ".pdf,application/pdf", false],
+ topdf: ["Select JPG or PNG images", "image/jpeg,image/png", true],
+ merge: ["Select two or more PDF files", ".pdf,application/pdf", true],
+ split: ["Select PDF file", ".pdf,application/pdf", false],
+ compress: ["Select PDF file", ".pdf,application/pdf", false]
+};
+
+document.querySelectorAll(".tool").forEach(btn => {
+ btn.addEventListener("click", () => {
+  tool = btn.dataset.tool;
+  document.querySelectorAll(".tool").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  $("fileLabel").textContent = settings[tool][0];
+  $("files").accept = settings[tool][1];
+  $("files").multiple = settings[tool][2];
+  $("files").value = "";
+  $("extra").innerHTML = tool === "split"
+   ? '<label>Page number to extract (leave blank for all pages separately)</label><input id="pageNumber" type="number" min="1" placeholder="Example: 2">'
+   : "";
+  $("status").textContent = "";
+ });
+});
+
+function download(data, name, type) {
+ const blob = data instanceof Blob ? data : new Blob([data], {type});
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement("a");
+ a.href = url;
+ a.download = name;
+ a.click();
+ setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+async function pdfDoc(file) {
+ return PDFLib.PDFDocument.load(await file.arrayBuffer());
+}
+
+$("convert").addEventListener("click", async () => {
+ const files = [...$("files").files];
+ if (!files.length) {
+  $("status").textContent = "Please select your file first.";
+  return;
+ }
+ const btn = $("convert");
+ btn.disabled = true;
+ $("status").textContent = "Please wait. Processing your files...";
+
+ try {
+  if (tool === "merge") {
+   if (files.length < 2) throw Error("Select at least two PDF files.");
+   const merged = await PDFLib.PDFDocument.create();
+   for (const file of files) {
+    const source = await pdfDoc(file);
+    const pages = await merged.copyPages(source, source.getPageIndices());
+    pages.forEach(p => merged.addPage(p));
+   }
+   download(await merged.save(), "merged-pdf.pdf", "application/pdf");
+  }
+
+  else if (tool === "topdf") {
+   const pdf = new jspdf.jsPDF();
+   for (let i = 0; i < files.length; i++) {
+    const data = await new Promise((resolve,reject) => {
+     const reader = new FileReader();
+     reader.onload = () => resolve(reader.result);
+     reader.onerror = reject;
+     reader.readAsDataURL(files[i]);
+    });
+    const img = new Image();
+    await new Promise((resolve,reject) => {
+     img.onload = resolve; img.onerror = reject; img.src = data;
+    });
+    const w = pdf.internal.pageSize.getWidth();
+    const h = pdf.internal.pageSize.getHeight();
+    const ratio = Math.min(w/img.width,h/img.height);
+    const iw = img.width*ratio, ih = img.height*ratio;
+    if (i) pdf.addPage();
+    pdf.addImage(data, files[i].type.includes("png") ? "PNG":"JPEG",
+     (w-iw)/2,(h-ih)/2,iw,ih);
+   }
+   pdf.save("images-to-pdf.pdf");
+  }
+
+  else if (tool === "jpg") {
+   const file = files[0];
+   const pdf = await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+   for (let n=1;n<=pdf.numPages;n++) {
+    const page = await pdf.getPage(n);
+    const viewport = page.getViewport({scale:1.5});
+    const canvas = document.createElement("canvas");
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+    const blob = await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",0.9));
+    download(blob,`pdf-page-${n}.jpg`,"image/jpeg");
+   }
+  }
+
+  else if (tool === "word") {
+   const pdf = await pdfjsLib.getDocument({data:await files[0].arrayBuffer()}).promise;
+   let html = "<html><meta charset='utf-8'><body>";
+   for (let n=1;n<=pdf.numPages;n++) {
+    const page=await pdf.getPage(n);
+    const content=await page.getTextContent();
+    html += "<h2>Page "+n+"</h2><p>";
+    html += content.items.map(item =>
+     String(item.str).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))
+    ).join(" ");
+    html += "</p>";
+   }
+   html += "</body></html>";
+   download(html,"converted-document.doc","application/msword");
+  }
+
+  else if (tool === "split") {
+   const source = await pdfDoc(files[0]);
+   const total = source.getPageCount();
+   const requested = $("pageNumber")?.value;
+   if (requested) {
+    const n = Number(requested);
+    if (!Number.isInteger(n)||n<1||n>total) throw Error("Enter a page number between 1 and "+total);
+    const out = await PDFLib.PDFDocument.create();
+    const [page] = await out.copyPages(source,[n-1]);
+    out.addPage(page);
+    download(await out.save(),`page-${n}.pdf`,"application/pdf");
+   } else {
+    for (let i=0;i<total;i++) {
+     const out = await PDFLib.PDFDocument.create();
+     const [page] = await out.copyPages(source,[i]);
+     out.addPage(page);
+     download(await out.save(),`page-${i+1}.pdf`,"application/pdf");
+    }
+   }
+  }
+
+  else if (tool === "compress") {
+   const source = await pdfDoc(files[0]);
+   const bytes = await source.save({useObjectStreams:true});
+   download(bytes,"compressed-pdf.pdf","application/pdf");
+  }
+
+  $("status").textContent = "Done! Your download should start automatically.";
+ } catch (e) {
+  $("status").textContent = "Error: " + (e.message || "Something went wrong.");
+ } finally {
+  btn.disabled = false;
+ }
+});
+</script>
+</body>
+  </html>
+  
